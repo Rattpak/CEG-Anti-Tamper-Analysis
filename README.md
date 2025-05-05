@@ -1,2 +1,13 @@
 # CEG-Anti-Tamper-Analysis
-This project documents the reverse engineering and partial disabling of Steam's CEG (Custom Executable Generation) anti-tamper protections in T6SP, while preserving its anti-piracy checks
+
+Reverse engineering, analysis, and partial disabling of Steam's CEG anti-tamper protections in T6SP, while preserving its anti-piracy checks
+
+⚠️ This is a technical exploration meant for educational purposes only ⚠️
+
+## Contents
+
+- Assembly-level function analysis
+- Stack-smashing and anti-debugging tricks
+- Reconstructed C-like source headers
+- Debugging and breakpoint strategies
+- Notes on preserving anti-piracy logic
