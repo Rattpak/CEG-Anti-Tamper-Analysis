@@ -72,10 +72,12 @@ However, this wasn’t the only function that checked the CRC function, there we
 
 For now, I’ll refer to this function as the main CRC checking function and for good reason. The parent function (which contains both the CRC I hooked and this "main CRC check") is called from two separate places: `SV_PreFrame_Save` and `SV_ServerThread`. Internally, it intercepts the call to `SV_ProcessPendingSaves`. I named this CRC checker `CEG_SV_RunMemoryCRC`.
 
+![alt text](https://github.com/Rattpak/CEG-Anti-Tamper-Analysis/blob/59257d56c04dc43cff72c2cfb63df4d7d5e89dc2/img/CEG_SV_ProcessPendingSaves.png)
+
 This function runs every server frame. You could nop out the call in both `SV_ServerThread` and `SV_PreFrame_Save`, and that would work, but it would also break the entire savegame system.
 
 Also worth noting: `SV_ProcessPendingSaves` has no XREFs. That’s because CEG doesn’t call it directly. Instead, it gets the function address manually, stores it in EAX, jumps to it, and pushes the original return address (from either `SV_ServerThread` or `SV_PreFrame_Save`) into the stack pointer.
-The solution was actually pretty straightforward: just replace the CEG_SV_RunMemoryCRC call with a direct call to SV_ProcessPendingSaves. However, that didn’t work immediately, because EAX no longer held the correct value — meaning the jump landed somewhere random in memory.
+The solution was actually pretty straightforward: just replace the `CEG_SV_RunMemoryCRC` call with a direct call to `SV_ProcessPendingSaves`. However, that didn’t work immediately, because EAX no longer held the correct value — meaning the jump landed somewhere random in memory.
 
 Anyway, the good news is, we don’t actually need that indirect jump via EAX anymore, since we already control the hook. So we can just jump out of the hook directly to where we want.
 
