@@ -3,6 +3,7 @@ This write-up covers my research and implementation for bypassing specific anti-
 
 ## Why I Started
 I began this research while attempting to hook a function that immediately caused the game to terminate. My initial assumption was that I had implemented the hook incorrectly, so I tried different offsets in the same function, all with the same result.
+
 To investigate further, I used x32Dbg and set a byte hardware breakpoint on access at the address I was trying to hook. The breakpoint was instantly trigger and revealed an instruction at `0x637F4B` that was reading the byte:
 ```asm
 mov eax, dword ptr ds:[esi]
@@ -21,6 +22,7 @@ But just before that? A good old-fashioned:
 xor eax, eax
 ```
 A simple null pointer write. This was a CEG kill switch kicking in, a very simple one too. I labeled this one: `CEG_Killswitch_NullPtr`
+
 Using IDA, I could now see several XREFs to both of these functions. Note that not all CEG functions are able to be viewed in static analysis, but these ones are.
 
 Since this function was still CEG protected, I hooked memcpy instead, and ran a valid memory check like this:
@@ -143,7 +145,7 @@ For now, I’ll refer to this function as the main CRC checking function and for
 This function runs every server frame. You could nop out the call in both `SV_ServerThread` and `SV_PreFrame_Save`, and that would work, but it would also break the entire savegame system.
 
 Also worth noting: `SV_ProcessPendingSaves` has no XREFs. That’s because CEG doesn’t call it directly. Instead, it gets the function address manually, stores it in EAX, jumps to it, and pushes the original return address (from either `SV_ServerThread` or `SV_PreFrame_Save`) into the stack pointer.
-The solution was actually pretty straightforward: just replace the `CEG_SV_RunMemoryCRC` call with a direct call to `SV_ProcessPendingSaves`. However, that didn’t work immediately, because EAX no longer held the correct value — meaning the jump landed somewhere random in memory.
+The solution was actually pretty straightforward: just replace the `CEG_SV_RunMemoryCRC` call with a direct call to `SV_ProcessPendingSaves`. However, that didn’t work immediately, because EAX no longer held the correct value, meaning the jump landed somewhere random in memory.
 
 ![alt text](https://github.com/Rattpak/CEG-Anti-Tamper-Analysis/blob/59257d56c04dc43cff72c2cfb63df4d7d5e89dc2/img/CEG_SV_ProcessPendingSaves.png)
 
