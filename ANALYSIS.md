@@ -4,18 +4,18 @@ This write-up covers my research and implementation for bypassing specific anti-
 ## Why I Started
 I began this research while attempting to hook a function that immediately caused the game to terminate. My initial assumption was that I had implemented the hook incorrectly, so I tried different offsets in the same function, all with the same result.
 To investigate further, I used x32Dbg and set a byte hardware breakpoint on access at the address I was trying to hook. The breakpoint was instantly trigger and revealed an instruction at `0x637F4B` that was reading the byte:
-```
+```asm
 mov eax, dword ptr ds:[esi]
 ```
 Judging by the structure of the function that the instruction was in, it was most likely a CRC. I cross-referenced the function and confirmed it was a part of CEG, as all its references pointed to other known CEG functions. Knowing this, I labeled it `CEG_CalcMemoryCRC`
 
 ## Kill Switches
 After setting a breakpoint on that CRC function and letting it run, I watched what used the result. I ended up just NOPing the call entirely and immediately got hit with a last chance exception for an access violation. The instruction that causes the violation is at address `0x8CF79B`
-```
+```asm
 mov [eax], ecx
 ```
 But just before that? A good old-fashioned:
-```
+```asm
 xor eax, eax
 ```
 A simple null pointer write. This was a CEG kill switch kicking in, a very simple one too. I labeled this one: `CEG_Killswitch_NullPtr`
@@ -28,3 +28,91 @@ Setting breakpoints on
 <kernel32.dll.TerminateProcess>
 ```
 was enough to stop the game from closing when tampering with CEG. However setting breakpoints here is only useful to realize you tripped CEG without actually having the process close. The problem is that CEG smashes the callstack and replaces it with `0x8000DEAD`
+![alt text](https://github.com/Rattpak/CEG-Anti-Tamper-Analysis/blob/fbb35e94a7e9792997fea5e5ac2353739d3f221e/img/ceg_exitprocess.png "The CEG_ExitProcess function in IDA")
+
+This is not the only location that the `0x8000DEAD` occurs, so its not at simple as removing that part of the function. However, I found the function responsible for this stack smashing and wrote a hook that logs the thread ID and suspends the thread before it can even get to ExitProcess. It worked, and was kind of fun to implement and was very usefull. I eventually scrapped it because again, I wasn’t trying to make a full CEG disabler, I just wanted my hooks to stop triggering kill switches. So at this point my research into CEG killswitches was done.
+
+## Attempting to Spoof the CRC
+My first idea for the CRC function was to basically gut it and replace its internals with a stub function that takes in the requested CRC start address, and from there, just returns whatever the expected CRC would be. While I still believe this is a viable approach, it didn’t seem practical at the time, especially since I was still deep in the research phase, trying to understand how everything actually worked.
+
+There are also other complications. For example, `CEG_CalcMemoryCRC` can take the same parameters but yield different CRC results depending on the value in ESI before the function is called. Now I did experiment with this a bit and found a way to force ESI to always be the same. By changing the 
+```asm
+add esi, 4
+```
+in the loops where `CEG_CalcMemoryCRC` is called to
+```asm
+mov esi, 1C0
+```
+it will still pass all the CRC checks that are needed to keep CEG happy and the game running, while only doing about 1/5 the amount of checks. In the end i did not end up using this trick, but it was still interesting to see.
+
+## Hooking Time
+So when I went to modify the internals of the `CEG_CalcMemoryCRC` function, it immediately tripped CEG. A CRC that checks itself. Very nice. Setting a hardware breakpoint inside the function revealed that there was one specific call that would check it, but interestingly, that call itself wasn’t protected by a CRC.
+
+Since this was the first CRC I started working on for CEG, I set a breakpoint at the end of the CRC calculation, grabbed the value in `EAX`, and made a hook that jumps to a custom function. That function emulates the CRC setup and then just force-returns the correct result.
+```C++
+void __declspec(naked) crcHook() {
+	__asm {
+		mov esi, ecx
+		mov eax, 0xFFB97B1F ;<-------- CRC value
+		mov[esi], eax
+		jmp[crc_jmpBackAddr]
+	}
+}
+```
+
+Replacing the CRC call here with my hook worked perfectly for what I needed. It gave me full freedom to modify the internals of the CRC function as much as I wanted, which was extremely useful, both for analysis and for seeing exactly what chunks of memory were being checked.
+
+One important thing to note: CEG doesn't just check the specific function it's interested in. Instead, it checks thousands of bytes before and after. The original function I was trying to hook wasn’t even a CEG function, but it still got caught in the crossfire of a broader CEG memory check.
+
+## More CRC Checks
+
+However, this wasn’t the only function that checked the CRC function, there were others. Fortunately, the rest weren’t called every frame. Instead, they only ran under specific conditions (like level changes and client disconnects). One of those additional checks is called from a function that scans hundreds of other functions, so a simple one-value spoof wasn’t going to cut it.
+
+For now, I’ll refer to this function as the main CRC checking function and for good reason. The parent function (which contains both the CRC I hooked and this "main CRC check") is called from two separate places: `SV_PreFrame_Save` and `SV_ServerThread`. Internally, it intercepts the call to `SV_ProcessPendingSaves`. I named this CRC checker `CEG_SV_RunMemoryCRC`.
+
+This function runs every server frame. You could nop out the call in both `SV_ServerThread` and `SV_PreFrame_Save`, and that would work, but it would also break the entire savegame system.
+
+Also worth noting: `SV_ProcessPendingSaves` has no XREFs. That’s because CEG doesn’t call it directly. Instead, it gets the function address manually, stores it in EAX, jumps to it, and pushes the original return address (from either `SV_ServerThread` or `SV_PreFrame_Save`) into the stack pointer.
+The solution was actually pretty straightforward: just replace the CEG_SV_RunMemoryCRC call with a direct call to SV_ProcessPendingSaves. However, that didn’t work immediately, because EAX no longer held the correct value — meaning the jump landed somewhere random in memory.
+
+Anyway, the good news is, we don’t actually need that indirect jump via EAX anymore, since we already control the hook. So we can just jump out of the hook directly to where we want.
+
+Here’s the simple assembly I threw together to make that work:
+
+```C++
+void __declspec(naked) svHook() {
+	__asm {
+		mov eax, [esp] ;<------ the address of the location to jump back to
+		push eax
+
+		mov eax, 0x4684E0 ;<------ address of actual SV_ProcessPendingSaves
+		call eax
+
+		pop eax
+		jmp eax
+	}
+}
+```
+
+This code worked perfectly when the function was called from `SV_ServerThread`, but caused issues when it was called from `SV_PreFrame_Save`. Setting a breakpoint and letting it run revealed a glaring issue: the stack pointer needed to be adjusted differently now that we were no longer going through the original CEG functions.
+
+In the debugger, I noticed that `ESP + 8` now contained `00000001`, which was clearly wrong. The value we actually wanted was now sitting at `ESP + 0xC`.
+So, changing:
+
+```asm
+add esp, 8
+```
+to:
+```asm
+add esp, 0xC
+```
+inside `SV_PreFrame_Save` completely resolved the issue.
+
+Interestingly, this new bypass made my original CRC hook obsolete. Still, that hook was extremely useful for understanding how everything fit together.
+
+## What's Left?
+With this "main CRC" function knocked out, you can now freely edit a ton of other stuff that you couldn’t touch before. If you set a breakpoint inside the CRC function, you’ll still see checks happening, but they’re a lot less frequent and cover far less variety. Since the functions that call it aren’t likely being checked anymore, you can knock out a few easy ones without any real concern.
+
+There are also CRC checks targeting .rdata (possibly for the CRC result table?) I haven’t looked into that part too deeply. I labeled that one `CEG_CheckRdata`, and you can nop it out without any problems. Same thing goes for another CRC function that protects a CEG SHA1 routine, easy to remove.
+
+With those out of the way, you’re left with very, very few functions that still run CRC checks. But honestly, none of them are checking anything I’d consider remotely useful. And with the main protections already disabled, you could easily patch over the remaining checks using a simple hook like the ones I showed earlier.
