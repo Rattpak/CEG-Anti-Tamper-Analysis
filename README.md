@@ -4,10 +4,4 @@ Reverse engineering, analysis, and partial disabling of Steam's CEG anti-tamper 
 
 ⚠️ This is a technical exploration meant for educational purposes only ⚠️
 
-## Contents
-
-- Assembly-level function analysis
-- Stack-smashing and anti-debugging tricks
-- Reconstructed C-like source headers
-- Debugging and breakpoint strategies
-- Notes on preserving anti-piracy logic
+See [ANALYSIS.md](https://github.com/Rattpak/CEG-Anti-Tamper-Analysis/blob/ff1aaf046762616549bdcbdd6381d486d2c88720/ANALYSIS.md) for the analysis documentation
