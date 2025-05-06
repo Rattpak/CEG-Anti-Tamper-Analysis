@@ -1,6 +1,8 @@
 # Steam CEG Anti-Tamper Bypass (Maintaining Anti-Piracy)
 This write-up covers my research and implementation for bypassing specific anti-tamper functionality within Steam's CEG (Custom Executable Generation) system specifically for `t6sp.exe`, the singleplayer executable for *Call of Duty: Black Ops II*. The goal was to remove limitations that interfered with reverse engineering, debugging, and hooking, without enabling unauthorized use or affecting the game's built-in anti-piracy protections.
 
+During the early phases of research, the code was fairly chaotic. Hooks were scattered everywhere, and it felt like I was playing whack-a-mole with kill switches and integrity traps. But as I learned more about the flow and structure of CEG, everything started to converge and streamline. In the end, thanks to some architectural weaknesses in CEG (e.g., reliance on usermode stubs, predictable call structures, and some important functions not CRC checked), the final code ended up being much smaller and less complex than I initially expected.
+
 ## Why I Started
 I began this research while attempting to hook a function that immediately caused the game to terminate. My initial assumption was that I had implemented the hook incorrectly, so I tried different offsets in the same function, all with the same result.
 
@@ -203,7 +205,5 @@ There were a ton of smaller techniques and analysis methods I used along the way
 I’ll probably revisit this again at some point just for fun, and maybe try coming up with a completely different solution.
 
 Also, since CEG is entirely usermode, it makes for a really fun and approachable playground if you’re interested in getting into reverse engineering or tamper protection bypassing in games. No kernel-mode trickery needed, just you, your debugger, and a lot of curiosity.
-
-During the early phases of research, the code was fairly chaotic. Hooks were scattered everywhere, and it felt like I was playing whack-a-mole with kill switches and integrity traps. But as I learned more about the flow and structure of CEG, everything started to converge and streamline. In the end, thanks to some architectural weaknesses in CEG (e.g., reliance on usermode stubs, predictable call structures, and some important functions not CRC checked), the final code ended up being much smaller and less complex than I initially expected.
 
 If you would like to look at the final product source code, see [anti-anti-tamper.cpp](https://github.com/Rattpak/CEG-Anti-Tamper-Analysis/blob/f1bfb4025c7a1caa929053bea675d9c86b66b622/code/anti-anti-tamper.cpp)
