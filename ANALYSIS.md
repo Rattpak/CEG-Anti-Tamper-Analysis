@@ -23,6 +23,8 @@ xor eax, eax
 ```
 A simple null pointer write. This was a CEG kill switch kicking in, a very simple one too. I labeled this one: `CEG_Killswitch_NullPtr`
 
+![alt text](https://github.com/Rattpak/CEG-Anti-Tamper-Analysis/blob/238f13f634e75c763b70a05c4b4aca7bd1594bce/img/nullptr.png "CEG_Killswitch_NullPtr in IDA")
+
 Using IDA, I could now see several XREFs to both of these functions. Note that not all CEG functions are able to be viewed in static analysis, but these ones are.
 
 Since this function was still CEG protected, I hooked memcpy instead, and ran a valid memory check like this:
