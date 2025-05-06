@@ -1,3 +1,8 @@
+////////////////////////////////////
+//	In the end, this is all you need to disable
+//	90% of the anti-tamper checks
+////////////////////////////////////
+
 //CEG_CalcMemoryCRC at 0x52C8FC
 DWORD crc_jmpBackAddr;
 void __declspec(naked) crcHook() {
