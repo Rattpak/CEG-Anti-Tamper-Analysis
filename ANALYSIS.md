@@ -9,6 +9,8 @@ mov eax, dword ptr ds:[esi]
 ```
 Judging by the structure of the function that the instruction was in, it was most likely a CRC. I cross-referenced the function and confirmed it was a part of CEG, as all its references pointed to other known CEG functions. Knowing this, I labeled it `CEG_CalcMemoryCRC`
 
+If you want to see the internals of this function, see [CRC.md](https://github.com/Rattpak/CEG-Anti-Tamper-Analysis/blob/3d97b926d02e8a8a5fd95533349b8f377d63e97a/CRC.md)
+
 ## Kill Switches
 After setting a breakpoint on that CRC function and letting it run, I watched what used the result. I ended up just NOPing the call entirely and immediately got hit with a last chance exception for an access violation. The instruction that causes the violation is at address `0x8CF79B`
 ```asm
@@ -41,7 +43,7 @@ add esi, 4
 ```
 in the loops where `CEG_CalcMemoryCRC` is called to
 ```asm
-mov esi, 1C0
+mov esi, 0x1C0
 ```
 it will still pass all the CRC checks that are needed to keep CEG happy and the game running, while only doing about 1/5 the amount of checks. In the end i did not end up using this trick, but it was still interesting to see.
 
@@ -116,3 +118,11 @@ With this "main CRC" function knocked out, you can now freely edit a ton of othe
 There are also CRC checks targeting .rdata (possibly for the CRC result table?) I haven’t looked into that part too deeply. I labeled that one `CEG_CheckRdata`, and you can nop it out without any problems. Same thing goes for another CRC function that protects a CEG SHA1 routine, easy to remove.
 
 With those out of the way, you’re left with very, very few functions that still run CRC checks. But honestly, none of them are checking anything I’d consider remotely useful. And with the main protections already disabled, you could easily patch over the remaining checks using a simple hook like the ones I showed earlier.
+
+## Conclusion
+Overall, disabling the anti-tamper checks only took me a couple of hours in total, though that was spread out over several days, just working on it here and there. The bulk of the time was spent doing reconnaissance on how CEG works internally.
+**Importantly, this doesn’t mess with any of the anti-piracy protections**. I stayed away from that on purpose.
+There were a ton of smaller techniques and analysis methods I used along the way that I either don’t remember clearly or don’t care to detail here, since they’re kind of outside the scope of this write-up anyway.
+I’ll probably revisit this again at some point just for fun, and maybe try coming up with a completely different solution.
+
+Also, since CEG is entirely usermode, it makes for a really fun and approachable playground if you’re interested in getting into reverse engineering or tamper protection bypassing in games. No kernel-mode trickery needed, just you, your debugger, and a lot of curiosity.
