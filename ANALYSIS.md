@@ -23,13 +23,44 @@ xor eax, eax
 A simple null pointer write. This was a CEG kill switch kicking in, a very simple one too. I labeled this one: `CEG_Killswitch_NullPtr`
 Using IDA, I could now see several XREFs to both of these functions. Note that not all CEG functions are able to be viewed in static analysis, but these ones are.
 
-This is not the only way CEG will try and end the process, however the rest of them are just as easy to find since CEG uses the usermode stubs for every syscall, meaning placing breakpoints on process-exiting syscalls is trivial. You don’t need to go kernel-deep to catch these, just put a breakpoint on ExitProcess or TerminateProcess, and you’ll hit if you trip CEG.
+Since this function was still CEG protected, I hooked memcpy instead, and ran a valid memory check like this:
+
+```C++
+bool isMemoryReadable(const void* address, size_t size) {
+	MEMORY_BASIC_INFORMATION mbi;
+	if (VirtualQuery(address, &mbi, sizeof(mbi)) == 0) {
+		return false;
+	}
+		
+	DWORD protect = mbi.Protect;
+	bool readable = (protect & PAGE_READONLY) || (protect & PAGE_READWRITE) || (protect & PAGE_EXECUTE_READ) || (protect & PAGE_EXECUTE_READWRITE);
+	return readable && ((uintptr_t)address + size <= (uintptr_t)mbi.BaseAddress + mbi.RegionSize);
+}
+
+void* _memcpy_hookfunc(void* a1, const void* Src, size_t Size) {
+	if (!isMemoryReadable(Src, Size)) {
+		/**memcpy Kill Attempt Prevented**/
+		return a1;
+	}
+
+	return memcpy(a1, Src, Size);
+}
+```
+
+Which did work, but this is not the only way CEG will try and end the process, however the rest of them are just as easy to find since CEG uses the usermode stubs for every syscall, meaning placing breakpoints on process-exiting syscalls is trivial. You don’t need to go kernel-deep to catch these, just put a breakpoint on ExitProcess or TerminateProcess, and you’ll hit if you trip CEG.
 Setting breakpoints on
 ```
 <kernel32.dll.ExitProcess>
 <kernel32.dll.TerminateProcess>
 ```
 was enough to stop the game from closing when tampering with CEG. However setting breakpoints here is only useful to realize you tripped CEG without actually having the process close. The problem is that CEG smashes the callstack and replaces it with `0x8000DEAD`
+
+Here is what the callstack will look like when setting a breakpoint on exit syscalls:
+
+![alt text](https://github.com/Rattpak/CEG-Anti-Tamper-Analysis/blob/0bcb9d1403ae6635b5a0b2a3266432250c8fb679/img/callstack.png "Example of the callstack being destroyed")
+
+Heres some code of it:
+
 ![alt text](https://github.com/Rattpak/CEG-Anti-Tamper-Analysis/blob/fbb35e94a7e9792997fea5e5ac2353739d3f221e/img/ceg_exitprocess.png "The CEG_ExitProcess function in IDA")
 
 This is not the only location that the `0x8000DEAD` occurs, so its not at simple as removing that part of the function. However, I found the function responsible for this stack smashing and wrote a hook that logs the thread ID and suspends the thread before it can even get to ExitProcess. It worked, and was kind of fun to implement and was very usefull. I eventually scrapped it because again, I wasn’t trying to make a full CEG disabler, I just wanted my hooks to stop triggering kill switches. So at this point my research into CEG killswitches was done.
