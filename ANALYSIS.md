@@ -204,4 +204,6 @@ I’ll probably revisit this again at some point just for fun, and maybe try com
 
 Also, since CEG is entirely usermode, it makes for a really fun and approachable playground if you’re interested in getting into reverse engineering or tamper protection bypassing in games. No kernel-mode trickery needed, just you, your debugger, and a lot of curiosity.
 
+During the early phases of research, the code was fairly chaotic. Hooks were scattered everywhere, and it felt like I was playing whack-a-mole with kill switches and integrity traps. But as I learned more about the flow and structure of CEG, everything started to converge and streamline. In the end, thanks to some architectural weaknesses in CEG (e.g., reliance on usermode stubs, predictable call structures, and some important functions not CRC checked), the final code ended up being much smaller and less complex than I initially expected.
+
 If you would like to look at the final product source code, see [anti-anti-tamper.cpp](https://github.com/Rattpak/CEG-Anti-Tamper-Analysis/blob/f1bfb4025c7a1caa929053bea675d9c86b66b622/code/anti-anti-tamper.cpp)
