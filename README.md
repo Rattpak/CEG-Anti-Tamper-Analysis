@@ -2,7 +2,7 @@
 
 Reverse engineering, analysis, and partial disabling of Steam's CEG (Custom Executable Generation) anti-tamper protections in `t6sp.exe` (Call of Duty: Black Ops II singleplayer), while **preserving all anti-piracy mechanisms**.
 
-> ⚠️ **Disclaimer:** This project is for educational and research purposes only. It does **not** and will **never** facilitate piracy or unauthorized distribution of software. The focus is strictly on bypassing tamper protections to allow for legitimate reverse engineering, modding, and debugging workflows.
+> ⚠️ **Disclaimer:** This analysis is for educational and research purposes only. It does **not** and will **never** facilitate piracy or unauthorized distribution of software. The focus is strictly on bypassing tamper protections to allow for legitimate reverse engineering, modding, and debugging workflows.
 
 
 ## Overview
