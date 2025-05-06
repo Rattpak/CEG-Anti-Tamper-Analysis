@@ -4,7 +4,7 @@ This write-up covers my research and implementation for bypassing specific anti-
 ## Why I Started
 I began this research while attempting to hook a function that immediately caused the game to terminate. My initial assumption was that I had implemented the hook incorrectly, so I tried different offsets in the same function, all with the same result.
 
-To investigate further, I used x32Dbg and set a byte hardware breakpoint on access at the address I was trying to hook. The breakpoint was instantly trigger and revealed an instruction at `0x637F4B` that was reading the byte:
+To investigate further, I used x32dbg and set a byte hardware breakpoint on access at the address I was trying to hook. The breakpoint was instantly trigger and revealed an instruction at `0x637F4B` that was reading the byte:
 ```asm
 mov eax, dword ptr ds:[esi]
 ```
