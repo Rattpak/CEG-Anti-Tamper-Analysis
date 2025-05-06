@@ -70,14 +70,51 @@ One important thing to note: CEG doesn't just check the specific function it's i
 
 However, this wasn’t the only function that checked the CRC function, there were others. Fortunately, the rest weren’t called every frame. Instead, they only ran under specific conditions (like level changes and client disconnects). One of those additional checks is called from a function that scans hundreds of other functions, so a simple one-value spoof wasn’t going to cut it.
 
-For now, I’ll refer to this function as the main CRC checking function and for good reason. The parent function (which contains both the CRC I hooked and this "main CRC check") is called from two separate places: `SV_PreFrame_Save` and `SV_ServerThread`. Internally, it intercepts the call to `SV_ProcessPendingSaves`. I named this CRC checker `CEG_SV_RunMemoryCRC`.
+**Note:** This list just lists the name of the function where the start addresses of the CRC checks, and does not contain the functions that are inside the CRC checks.
+```
+CEG CRC Integrity Check Locations
 
-![alt text](https://github.com/Rattpak/CEG-Anti-Tamper-Analysis/blob/59257d56c04dc43cff72c2cfb63df4d7d5e89dc2/img/CEG_SV_ProcessPendingSaves.png)
+//Functions
+Actor_Pain
+AimAssist_RegisterDvars
+CG_CompassCalcDimensions
+CG_SndEntHandle
+CG_UpdateClouds
+CycleWeapPrimary
+DB_PrintXAssetsForType_FastFile
+Dvar_Init
+Dvar_IsValidName
+Expression_MapIndexToFunction
+hks::Visitor::visit_children (the one at 0x6009A0)
+IPak_AddPackfile
+LiveLeaderboard_GetByPlayer
+LiveSteam_PopOverlayForSteamID
+Live_UpdatePlayerNetAddr
+Menu_Paint
+mp_reduce_2k_l
+OrientationInvert
+Party_Init
+PlayerCmd_meleeButtonPressed
+ReadPathNodes
+Scr_Vehicle_Think
+SEH_LocalizeTextMessage
+SP_info_vehicle_node
+VEH_UpdateNitrousPosition
+VEH_UpdatePathOffset
+SpotLightViewMatrix
+standard_query::query
+Turret_PlaceTurret_UpdateFooting
+(many many more)
+```
+
+For now, I’ll refer to this function as the main CRC checking function and for good reason. The parent function (which contains both the CRC I hooked and this "main CRC check") is called from two separate places: `SV_PreFrame_Save` and `SV_ServerThread`. Internally, it intercepts the call to `SV_ProcessPendingSaves`. I named this CRC checker `CEG_SV_RunMemoryCRC`.
 
 This function runs every server frame. You could nop out the call in both `SV_ServerThread` and `SV_PreFrame_Save`, and that would work, but it would also break the entire savegame system.
 
 Also worth noting: `SV_ProcessPendingSaves` has no XREFs. That’s because CEG doesn’t call it directly. Instead, it gets the function address manually, stores it in EAX, jumps to it, and pushes the original return address (from either `SV_ServerThread` or `SV_PreFrame_Save`) into the stack pointer.
 The solution was actually pretty straightforward: just replace the `CEG_SV_RunMemoryCRC` call with a direct call to `SV_ProcessPendingSaves`. However, that didn’t work immediately, because EAX no longer held the correct value — meaning the jump landed somewhere random in memory.
+
+![alt text](https://github.com/Rattpak/CEG-Anti-Tamper-Analysis/blob/59257d56c04dc43cff72c2cfb63df4d7d5e89dc2/img/CEG_SV_ProcessPendingSaves.png)
 
 Anyway, the good news is, we don’t actually need that indirect jump via EAX anymore, since we already control the hook. So we can just jump out of the hook directly to where we want.
 
